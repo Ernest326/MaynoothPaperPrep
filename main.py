@@ -7,14 +7,12 @@ import threading
 from time import sleep
 
 
+# new impl for the UI from the ui module
 
 from ui import run_app
 
 if __name__ == "__main__":
     run_app()
-
-
-
 
 
 """
