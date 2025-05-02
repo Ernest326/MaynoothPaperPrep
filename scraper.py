@@ -63,6 +63,11 @@ def scrape(username, password, module_code, output_folder):
     
     # Download the papers
     print("Downloading papers...")
+    
+    # Create the output directory if it doesn't exist
+    if not os.path.exists(f"{output_folder}/{module_code}/papers"):
+        os.makedirs(f"{output_folder}/{module_code}/papers")
+                
     for paper in papers:
         response = session.get(paper)
         if response.status_code == 200:

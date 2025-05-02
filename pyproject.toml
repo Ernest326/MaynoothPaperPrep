@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "bs4>=0.0.2",
+    "openai>=1.76.2",
     "requests>=2.32.3",
     "tk>=0.1.0",
 ]
