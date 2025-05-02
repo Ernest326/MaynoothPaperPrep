@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import os
+import threading
 
 session = requests.Session()
 url = "https://www.maynoothuniversity.ie/library/exam-papers"
@@ -67,26 +68,36 @@ def scrape(username, password, module_code, output_folder):
     # Create the output directory if it doesn't exist
     if not os.path.exists(f"{output_folder}/{module_code}/papers"):
         os.makedirs(f"{output_folder}/{module_code}/papers")
-                
+              
+    #Download papers in parallel using threads 
+    threads = [] 
     for paper in papers:
-        response = session.get(paper)
-        if response.status_code == 200:
-            filename = paper.split("/")[-1]
-            
-            #Check if file exists already
-            if os.path.isfile(f"{output_folder}/{module_code}/papers/{filename}"):
-                print(f"Paper already exists: {filename}, skipping!")
-                continue
-            
-            #If not download the file
-            with open(f"{output_folder}/{module_code}/papers/{filename}", "wb") as f:
-                f.write(response.content)
-            print(f"Downloaded: {filename}")
-        else:
-            print(f"Failed to download: {paper}")
+        thread = threading.Thread(target=download_paper, args=(paper, output_folder, module_code))
+        threads.append(thread)
+        thread.start()
+    
+    # Wait for all threads to complete
+    for thread in threads:
+        thread.join()
             
     print("All papers downloaded")
     print("Scraping completed")
     
     return True
     
+    
+def download_paper(url, output_folder, module_code):
+    response = session.get(url)
+    if response.status_code == 200:
+        filename = url.split("/")[-1]
+            
+        #Check if file exists already
+        if os.path.isfile(f"{output_folder}/{module_code}/papers/{filename}"):
+            print(f"Paper already exists: {filename}, skipping!")
+            
+        #If not download the file
+        with open(f"{output_folder}/{module_code}/papers/{filename}", "wb") as f:
+            f.write(response.content)
+        print(f"Downloaded: {filename}")
+    else:
+        print(f"Failed to download: {filename}")
