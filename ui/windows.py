@@ -16,10 +16,10 @@ during long-running operations by offloading work to background threads.
 """
 
 # Standard library imports
-import sys                      # For system-level operations like exiting the application
-import re                       # For regular expression pattern matching in input validation
-import threading                # For threading support (although Qt's threading is used primarily)
-from pathlib import Path        # For cross-platform file path manipulation
+import sys
+import re
+import threading
+from pathlib import Path
 
 # PySide6 imports for UI components
 from PySide6.QtWidgets import (
