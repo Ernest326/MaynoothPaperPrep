@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "bs4>=0.0.2",
+    "markdown>=3.8",
     "openai>=1.76.2",
     "pypdf2>=3.0.1",
     "pyside6>=6.9.0",
