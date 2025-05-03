@@ -28,7 +28,7 @@ Run the virtual environment:
 
 And run the code!
 ```
-python main.py
+uv run main.py
 ```
 
 ## How it works?

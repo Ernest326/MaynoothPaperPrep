@@ -1,0 +1,68 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Project setup VSCode (MacOS / Linux)",
+            "type": "shell",
+            "command": "uv sync && source ./.venv/bin/activate",
+            "osx": {
+                "command": "uv sync && source ./.venv/bin/activate"
+            },
+            "linux": {
+                "command": "uv sync && source ./.venv/bin/activate"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Project setup VSCode (Windows)",
+            "type": "shell",
+            "command": "uv sync && .\\.venv\\Scripts\\activate",
+            "windows": {
+                "command": "uv sync && .\\.venv\\Scripts\\activate"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run main.py (MacOS / Linux)",
+            "type": "shell",
+            "command": "uv run main.py",
+            "osx": {
+                "command": "uv run main.py"
+            },
+            "linux": {
+                "command": "uv run main.py"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Run main.py (Windows)",
+            "type": "shell",
+            "command": "uv run main.py",
+            "windows": {
+                "command": "uv run main.py"
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Format Python code (MacOS / Linux)",
+            "type": "shell",
+            "command": "uv run black .",
+            "osx": {
+                "command": "uv run black ."
+            },
+            "linux": {
+                "command": "uv run black ."
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Format Python code (Windows)",
+            "type": "shell",
+            "command": "uv run black .",
+            "windows": {
+                "command": "uv run black ."
+            },
+            "problemMatcher": []
+        }
+    ]
+}
