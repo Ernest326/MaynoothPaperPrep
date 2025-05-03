@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup
 import os
 import threading
 
+
 class Scraper:
     def __init__(self):
         self.session = requests.Session()
@@ -17,7 +18,7 @@ class Scraper:
 
         # Check if we login form exists, so we don't try to login twice
         if soup.find("input", {"name": "form_build_id"}):
-            
+
             form_build_id = soup.find("input", {"name": "form_build_id"})["value"]
             # POST credentials for login
             login_data = {
@@ -36,9 +37,7 @@ class Scraper:
             print("Login successful")
 
         # Fetch the exam papers
-        exam_data = {
-            "code_value_1": module_code
-        }
+        exam_data = {"code_value_1": module_code}
 
         print("Fetching exam papers...")
         res = self.session.get(self.url, params=exam_data)
@@ -78,11 +77,14 @@ class Scraper:
 
         def progress_update():
             self._progress_count += 1
-            if hasattr(self, 'progress_callback') and callable(self.progress_callback):
+            if hasattr(self, "progress_callback") and callable(self.progress_callback):
                 self.progress_callback(self._progress_count, total)
 
         for paper in papers:
-            thread = threading.Thread(target=self.download_paper, args=(paper, output_folder, module_code, progress_update))
+            thread = threading.Thread(
+                target=self.download_paper,
+                args=(paper, output_folder, module_code, progress_update),
+            )
             threads.append(thread)
             thread.start()
 
