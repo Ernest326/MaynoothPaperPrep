@@ -11,7 +11,7 @@ It provides a complete PySide6-based user interface with:
 - Themeable interface (light/dark modes)
 - Multithreaded background operations
 
-The UI is designed to be responsive and user-friendly, preventing any freezing 
+The UI is designed to be responsive and user-friendly, preventing any freezing
 during long-running operations by offloading work to background threads.
 """
 
@@ -23,10 +23,31 @@ from pathlib import Path
 
 # PySide6 imports for UI components
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QCheckBox, QFileDialog,
-    QGroupBox, QGridLayout, QMessageBox, QFrame, QSizePolicy,
-    QSpacerItem, QStatusBar, QTabWidget, QProgressBar, QListWidget, QComboBox, QDialog, QTextEdit, QFormLayout, QDialogButtonBox
+    QApplication,
+    QMainWindow,
+    QWidget,
+    QVBoxLayout,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QPushButton,
+    QCheckBox,
+    QFileDialog,
+    QGroupBox,
+    QGridLayout,
+    QMessageBox,
+    QFrame,
+    QSizePolicy,
+    QSpacerItem,
+    QStatusBar,
+    QTabWidget,
+    QProgressBar,
+    QListWidget,
+    QComboBox,
+    QDialog,
+    QTextEdit,
+    QFormLayout,
+    QDialogButtonBox,
 )
 from PySide6.QtGui import QIcon, QFont, QPixmap, QColor, QTextCursor
 from PySide6.QtCore import Qt, Signal, Slot, QThread
@@ -35,29 +56,30 @@ import requests
 import scraper
 from .styles import theme
 
+
 class ScraperWorker(QThread):
     """
     Worker thread to run the scraper without blocking the UI.
-    
+
     This class extends QThread to perform paper scraping operations in a background
     thread, keeping the UI responsive during potentially long-running operations.
     It communicates with the main thread using Qt's signal-slot mechanism.
-    
+
     Signals:
         finished(bool, str): Emitted when scraping completes, with success status and message.
         progress(int, int): Emitted to update progress, with current and total values.
     """
-    
+
     # Signal that will be emitted when the scraping is complete
     # - bool: Whether the scraping was successful
     # - str: Success message or error message
     finished = Signal(bool, str)
     progress = Signal(int, int)  # current, total
-    
+
     def __init__(self, username, password, module_code, output_folder):
         """
         Initialize the worker thread with the necessary scraping parameters.
-        
+
         Args:
             username (str): The student ID for Maynooth authentication
             password (str): The password for Maynooth authentication
@@ -72,31 +94,29 @@ class ScraperWorker(QThread):
         self.output_folder = output_folder
         self.scraper = scraper.Scraper()
         self.progress_callback = None
-        
+
     def run(self):
         """
         Execute the scraping operation in the background thread.
-        
+
         This method is automatically called when the thread's start() method is called.
         It runs the scraper with the provided authentication and module information,
         then emits the finished signal with the result.
         """
+
         # Define a progress callback to emit progress updates
         def progress_cb(current, total):
             self.progress.emit(current, total)
-        
+
         # Assign the progress callback to the scraper
         self.scraper.progress_callback = progress_cb
-        
+
         # Run the scraper and get the result
         # The scraper.start method returns True on success or an error message on failure
         result = self.scraper.start(
-            self.username,
-            self.password,
-            self.module_code.upper(),
-            self.output_folder
+            self.username, self.password, self.module_code.upper(), self.output_folder
         )
-        
+
         # Signal the result back to the main thread
         if result is True:
             # Success case: emit True with a success message
@@ -111,6 +131,7 @@ class ModelSettingsDialog(QDialog):
     Dialog for configuring model parameters such as temperature and max tokens.
     Used for both OpenAI and local models (Ollama).
     """
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Model Settings")
@@ -120,10 +141,13 @@ class ModelSettingsDialog(QDialog):
         self.max_tokens_input = QLineEdit("512")
         layout.addRow("Temperature", self.temperature_input)
         layout.addRow("Max Tokens", self.max_tokens_input)
-        self.button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.button_box = QDialogButtonBox(
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel
+        )
         self.button_box.accepted.connect(self.accept)
         self.button_box.rejected.connect(self.reject)
         layout.addWidget(self.button_box)
+
     def get_settings(self):
         return {
             "temperature": float(self.temperature_input.text()),
@@ -136,14 +160,19 @@ class MarkdownTextEdit(QTextEdit):
     QTextEdit subclass that renders markdown as HTML for chat display.
     Used in the AI Generation tab for rich chat formatting.
     """
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setReadOnly(True)
         self.setAcceptRichText(True)
+
     def append_markdown(self, markdown_text):
         try:
             import markdown
-            html = markdown.markdown(markdown_text, extensions=['fenced_code', 'tables'])
+
+            html = markdown.markdown(
+                markdown_text, extensions=["fenced_code", "tables"]
+            )
         except ImportError:
             html = markdown_text
         self.moveCursor(QTextCursor.End)
@@ -154,17 +183,17 @@ class MarkdownTextEdit(QTextEdit):
 class MainWindow(QMainWindow):
     """
     Main application window for the Maynooth Paper Prep application.
-    
+
     This class provides the complete user interface for the application,
     including all form inputs, buttons, and status information. It handles
     user interactions, validates inputs, and manages the background scraping
     process through the ScraperWorker thread.
     """
-    
+
     def __init__(self):
         """
         Initialize the main window with default settings and UI setup.
-        
+
         This constructor:
         1. Calls the parent QMainWindow constructor
         2. Sets up window properties (title, size, etc.)
@@ -174,18 +203,18 @@ class MainWindow(QMainWindow):
         """
         # Initialize the parent QMainWindow
         super().__init__()
-        
+
         # Window settings
         self.setWindowTitle("Maynooth Paper Scraper")
         self.setGeometry(100, 100, 600, 400)
-        
+
         # Application variables
         self.output_folder = "./papers"  # Default output folder
-        
+
         # Set up the UI components
         self.setup_ui()
         self.apply_theme()
-        
+
     def setup_ui(self):
         """
         Set up the main UI, including tabbed layout, all widgets, and signal connections.
@@ -327,7 +356,9 @@ class MainWindow(QMainWindow):
         self.add_file_button = QPushButton("Add File")
         self.add_file_button.clicked.connect(self.add_file)
         self.model_select = QComboBox()
-        self.model_select.addItems(["gpt-3.5-turbo", "gpt-4", "llama-2", "ollama:custom"])  # Example models
+        self.model_select.addItems(
+            ["gpt-3.5-turbo", "gpt-4", "llama-2", "ollama:custom"]
+        )  # Example models
         self.settings_button = QPushButton("Model Settings")
         self.settings_button.clicked.connect(self.open_settings_dialog)
         file_model_layout.addWidget(self.add_file_button)
@@ -343,11 +374,11 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
-        
+
     def apply_theme(self):
         """
         Apply the current theme stylesheet to the application.
-        
+
         This method retrieves the current theme's stylesheet from the theme
         manager and applies it to the main window, affecting all child widgets.
         The theme system supports both light and dark modes.
@@ -355,11 +386,11 @@ class MainWindow(QMainWindow):
         # Get the current theme's stylesheet from the theme manager
         # and apply it to the entire window
         self.setStyleSheet(theme.get_stylesheet())
-        
+
     def toggle_theme(self):
         """
         Toggle between light and dark themes.
-        
+
         This method:
         1. Toggles the theme in the theme manager
         2. Applies the new theme
@@ -368,53 +399,55 @@ class MainWindow(QMainWindow):
         # Toggle the theme in the theme manager (light->dark or dark->light)
         theme.toggle_theme()
         self.apply_theme()
-        
+
         # Update the status bar with information about the current theme
         current_theme = "Dark" if theme.current_theme == "dark" else "Light"
         self.status_bar.showMessage(f"{current_theme} theme applied")
-    
+
     def select_output_folder(self):
         """
         Open a file dialog to select the output folder for scraped papers.
-        
+
         This method:
         1. Opens a directory selection dialog
         2. If a directory is selected, updates the output_folder variable
         3. Updates the displayed path in the UI
-        
+
         The selected folder will be used as the destination for downloaded papers.
         """
         # Open a directory selection dialog
         folder_path = QFileDialog.getExistingDirectory(
-            self,
-            "Select Output Folder",
-            str(Path(self.output_folder).absolute())
+            self, "Select Output Folder", str(Path(self.output_folder).absolute())
         )
-        
+
         # If a folder was selected (user didn't cancel the dialog)
         if folder_path:
             self.output_folder = folder_path
             self.output_display.setText(folder_path)
-    
+
     def start_scraper(self):
         """
         Validate user inputs and start the scraping process.
-        
+
         This method:
         1. Validates all required input fields
         2. Shows error messages if validation fails
         3. Disables the start button to prevent multiple scraping operations
         4. Creates and starts a ScraperWorker thread to handle the scraping
         5. Updates the UI to show that scraping is in progress
-        
+
         The actual scraping is performed in a background thread to keep
         the UI responsive during the potentially long-running operation.
         """
         # Collect all selected modules from the checklist
-        selected_modules = [cb.text() for cb in self.module_checkboxes if cb.isChecked()]
+        selected_modules = [
+            cb.text() for cb in self.module_checkboxes if cb.isChecked()
+        ]
         selected_modules.extend(self.custom_modules)
         if not selected_modules:
-            QMessageBox.critical(self, "Error", "Please select at least one module to download.")
+            QMessageBox.critical(
+                self, "Error", "Please select at least one module to download."
+            )
             return
         if not self.password_input.text():
             QMessageBox.critical(self, "Error", "Password cannot be empty")
@@ -446,12 +479,14 @@ class MainWindow(QMainWindow):
             self.username_input.text(),
             self.password_input.text(),
             module_code,
-            self.output_folder
+            self.output_folder,
         )
         self.worker.finished.connect(self._on_module_scrape_finished)
         self.worker.progress.connect(self.on_download_progress)
         self.worker.start()
-        self.status_bar.showMessage(f"Scraping {module_code} ({self._current_scrape_index+1}/{len(self._modules_to_scrape)})...")
+        self.status_bar.showMessage(
+            f"Scraping {module_code} ({self._current_scrape_index+1}/{len(self._modules_to_scrape)})..."
+        )
 
     def _on_module_scrape_finished(self, success, message):
         """
@@ -482,7 +517,7 @@ class MainWindow(QMainWindow):
     def on_download_progress(self, current, total):
         """
         Update the progress bar based on the current progress of the download.
-        
+
         Args:
             current (int): The current progress value
             total (int): The total value for the progress
@@ -501,11 +536,15 @@ class MainWindow(QMainWindow):
             self.message_input.clear()
             # Call AI backend (OpenAI or Ollama)
             model = self.model_select.currentText()
-            settings = getattr(self, '_model_settings', {"temperature": 1.0, "max_tokens": 512})
+            settings = getattr(
+                self, "_model_settings", {"temperature": 1.0, "max_tokens": 512}
+            )
             if model.startswith("ollama:") or model.lower().startswith("llama"):
                 response = self.query_ollama(text, model, settings)
             else:
-                response = "(response placeholder)"  # Replace with OpenAI call if needed
+                response = (
+                    "(response placeholder)"  # Replace with OpenAI call if needed
+                )
             self.message_list.append_markdown(f"**AI:** {response}")
 
     def add_file(self):
@@ -537,8 +576,8 @@ class MainWindow(QMainWindow):
             "prompt": prompt,
             "options": {
                 "temperature": settings.get("temperature", 1.0),
-                "num_predict": settings.get("max_tokens", 512)
-            }
+                "num_predict": settings.get("max_tokens", 512),
+            },
         }
         try:
             resp = requests.post(url, json=payload, timeout=60)
@@ -577,26 +616,26 @@ class MainWindow(QMainWindow):
 def run_app():
     """
     Initialize and run the application.
-    
+
     This is the main entry point for starting the application. It:
     1. Creates a QApplication instance (required for all Qt applications)
     2. Creates the main window
     3. Shows the window
     4. Starts the Qt event loop
-    
+
     The application will continue running until the user closes the window
     or calls sys.exit() from elsewhere in the code.
     """
     # Create a QApplication instance
     # QApplication manages the GUI application's control flow and main settings
     app = QApplication(sys.argv)  # Pass command line arguments to the application
-    
+
     # Create the main window
     window = MainWindow()
-    
+
     # Show the window
     window.show()
-    
+
     # Start the application's event loop
     # This call will block until the application exits
     sys.exit(app.exec())

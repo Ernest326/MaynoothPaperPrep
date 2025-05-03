@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "black>=25.1.0",
     "bs4>=0.0.2",
     "markdown>=3.8",
     "openai>=1.76.2",

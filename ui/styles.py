@@ -3,28 +3,29 @@ Styling for the Maynooth Paper Prep application.
 Provides light and dark themes with easy switching.
 """
 
+
 class AppTheme:
     """Manages application themes and provides easy access to stylesheets"""
-    
+
     def __init__(self):
         self.current_theme = "light"
-    
+
     def get_stylesheet(self):
         """Returns the current theme's stylesheet"""
         if self.current_theme == "dark":
             return self.dark_theme()
         else:
             return self.light_theme()
-    
+
     def set_theme(self, theme_name):
         """Sets the current theme to either 'light' or 'dark'"""
         if theme_name in ["light", "dark"]:
             self.current_theme = theme_name
-    
+
     def toggle_theme(self):
         """Toggles between light and dark themes"""
         self.current_theme = "dark" if self.current_theme == "light" else "light"
-    
+
     @staticmethod
     def light_theme():
         """Returns the light theme stylesheet"""
@@ -199,7 +200,7 @@ class AppTheme:
                 height: 0px;
             }
         """
-    
+
     @staticmethod
     def dark_theme():
         """Returns the dark theme stylesheet"""
@@ -404,4 +405,4 @@ class AppTheme:
 theme = AppTheme()
 
 # Export the theme instance
-__all__ = ['theme']
+__all__ = ["theme"]
