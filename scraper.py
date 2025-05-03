@@ -73,8 +73,16 @@ class Scraper:
 
         # Download papers in parallel using threads
         threads = []
+        self._progress_count = 0
+        total = len(papers)
+
+        def progress_update():
+            self._progress_count += 1
+            if hasattr(self, 'progress_callback') and callable(self.progress_callback):
+                self.progress_callback(self._progress_count, total)
+
         for paper in papers:
-            thread = threading.Thread(target=self.download_paper, args=(paper, output_folder, module_code))
+            thread = threading.Thread(target=self.download_paper, args=(paper, output_folder, module_code, progress_update))
             threads.append(thread)
             thread.start()
 
@@ -87,7 +95,7 @@ class Scraper:
 
         return True
 
-    def download_paper(self, url, output_folder, module_code):
+    def download_paper(self, url, output_folder, module_code, progress_update=None):
         response = self.session.get(url)
         if response.status_code == 200:
             filename = url.split("/")[-1]
@@ -95,11 +103,17 @@ class Scraper:
             # Check if file exists already
             if os.path.isfile(f"{output_folder}/{module_code}/papers/{filename}"):
                 print(f"Paper already exists: {filename}, skipping!")
+                if progress_update:
+                    progress_update()
                 return
 
             # If not, download the file
             with open(f"{output_folder}/{module_code}/papers/{filename}", "wb") as f:
                 f.write(response.content)
             print(f"Downloaded: {filename}")
+            if progress_update:
+                progress_update()
         else:
             print(f"Failed to download: {url.split('/')[-1]}")
+            if progress_update:
+                progress_update()

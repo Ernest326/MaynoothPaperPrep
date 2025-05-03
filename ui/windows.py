@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QCheckBox, QFileDialog,
     QGroupBox, QGridLayout, QMessageBox, QFrame, QSizePolicy,
-    QSpacerItem, QStatusBar
+    QSpacerItem, QStatusBar, QTabWidget, QProgressBar, QListWidget, QComboBox
 )
 from PySide6.QtGui import QIcon, QFont, QPixmap, QColor
 from PySide6.QtCore import Qt, Signal, Slot, QThread
@@ -44,12 +44,14 @@ class ScraperWorker(QThread):
     
     Signals:
         finished(bool, str): Emitted when scraping completes, with success status and message.
+        progress(int, int): Emitted to update progress, with current and total values.
     """
     
     # Signal that will be emitted when the scraping is complete
     # - bool: Whether the scraping was successful
     # - str: Success message or error message
     finished = Signal(bool, str)
+    progress = Signal(int, int)  # current, total
     
     def __init__(self, username, password, module_code, output_folder):
         """
@@ -68,6 +70,7 @@ class ScraperWorker(QThread):
         self.module_code = module_code
         self.output_folder = output_folder
         self.scraper = scraper.Scraper()
+        self.progress_callback = None
         
     def run(self):
         """
@@ -77,6 +80,13 @@ class ScraperWorker(QThread):
         It runs the scraper with the provided authentication and module information,
         then emits the finished signal with the result.
         """
+        # Define a progress callback to emit progress updates
+        def progress_cb(current, total):
+            self.progress.emit(current, total)
+        
+        # Assign the progress callback to the scraper
+        self.scraper.progress_callback = progress_cb
+        
         # Run the scraper and get the result
         # The scraper.start method returns True on success or an error message on failure
         result = self.scraper.start(
@@ -131,187 +141,139 @@ class MainWindow(QMainWindow):
         self.apply_theme()
         
     def setup_ui(self):
-        """
-        Set up the user interface components and layout.
-        
-        This method:
-        1. Creates the main widget and layout structure
-        2. Sets up the header section with title and theme toggle
-        3. Creates form sections for login, paper info, and AI settings
-        4. Adds the start button and status bar
-        5. Connects signals to slots for user interactions
-        
-        The UI uses a combination of layout managers (VBox, HBox, Grid) to
-        organize components in a user-friendly manner.
-        """
         # ======================================================================
         # Main widget and layout
         # ======================================================================
-        # Create a central widget to hold all UI components
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
-        
-        # Create the main vertical layout for the central widget
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(15)
-        
-        # ======================================================================
+
         # Header section with title and theme toggle
-        # ======================================================================
-        # Create a horizontal layout for the header section
         header_layout = QHBoxLayout()
-        header_layout.setContentsMargins(0, 0, 0, 10)  # Margins (left, top, right, bottom)
-        
-        # Create the title label with custom styling
+        header_layout.setContentsMargins(0, 0, 0, 10)
         title_label = QLabel("Maynooth Paper Scraper")
-        title_label.setObjectName("titleLabel")  # Set an object name for styling in CSS
-        title_label.setFont(QFont("Arial", 16, QFont.Bold))  # Set font (family, size, weight)
-        
-        # Create the theme toggle button
-        self.theme_button = QPushButton("Toggle Theme")  
+        title_label.setObjectName("titleLabel")
+        title_label.setFont(QFont("Arial", 16, QFont.Bold))
+        self.theme_button = QPushButton("Toggle Theme")
         self.theme_button.setObjectName("themeButton")
-        self.theme_button.setToolTip("Toggle Dark/Light Theme")  # Set tooltip text
-        # Connect the button's clicked signal to our toggle_theme method
+        self.theme_button.setToolTip("Toggle Dark/Light Theme")
         self.theme_button.clicked.connect(self.toggle_theme)
-        
         header_layout.addWidget(title_label)
         header_layout.addStretch()
         header_layout.addWidget(self.theme_button)
-        
         main_layout.addLayout(header_layout)
-        
+
         # ======================================================================
-        # Login Information Section
+        # Tab Widget
         # ======================================================================
-        # Create a group box for the login section
+        self.tabs = QTabWidget()
+        main_layout.addWidget(self.tabs)
+
+        # ------------------- Login Info Tab -------------------
+        self.login_tab = QWidget()
+        login_tab_layout = QVBoxLayout(self.login_tab)
         login_group = QGroupBox("Login Information")
         login_layout = QGridLayout()
         login_group.setLayout(login_layout)
-        
-        # Username
         username_label = QLabel("Username:")
-        username_label.setObjectName("fieldLabel")  # CSS styling identifier
-        self.username_input = QLineEdit()  # Create text input field
-        self.username_input.setPlaceholderText("Student ID (e.g. 12345678)")  # Set placeholder text
-        login_layout.addWidget(username_label, 0, 0)  # Add to layout at row 0, column 0
-        login_layout.addWidget(self.username_input, 0, 1)  # Add to layout at row 0, column 1
-        
-        # Password
+        username_label.setObjectName("fieldLabel")
+        self.username_input = QLineEdit()
+        self.username_input.setPlaceholderText("Student ID (e.g. 12345678)")
+        login_layout.addWidget(username_label, 0, 0)
+        login_layout.addWidget(self.username_input, 0, 1)
         password_label = QLabel("Password:")
-        password_label.setObjectName("fieldLabel")  # CSS styling identifier
-        self.password_input = QLineEdit()  # Create text input field
-        self.password_input.setEchoMode(QLineEdit.Password)  # Mask characters for password
-        self.password_input.setPlaceholderText("Your Maynooth account password")  # Set placeholder
-        login_layout.addWidget(password_label, 1, 0)  # Add to layout at row 1, column 0
-        login_layout.addWidget(self.password_input, 1, 1)  # Add to layout at row 1, column 1
-        
-        # Add the login group to the main layout
-        main_layout.addWidget(login_group)
-        
-        # ======================================================================
-        # Paper Information Section
-        # ======================================================================
-        # Create a group box for the paper information section
+        password_label.setObjectName("fieldLabel")
+        self.password_input = QLineEdit()
+        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.setPlaceholderText("Your Maynooth account password")
+        login_layout.addWidget(password_label, 1, 0)
+        login_layout.addWidget(self.password_input, 1, 1)
+        login_tab_layout.addWidget(login_group)
+        login_tab_layout.addStretch()
+        self.tabs.addTab(self.login_tab, "Login Info")
+
+        # ------------------- Downloads/Module Selection Tab -------------------
+        self.downloads_tab = QWidget()
+        downloads_tab_layout = QVBoxLayout(self.downloads_tab)
+        # Module Listing group
+        module_group = QGroupBox("Module Selection")
+        module_layout = QVBoxLayout()
+        module_group.setLayout(module_layout)
+        self.module_checkboxes = []
+        # Placeholder: populate with template module codes
+        template_modules = ["CS101", "CS102", "MA201", "PH301", "BI110"]
+        for code in template_modules:
+            cb = QCheckBox(code)
+            self.module_checkboxes.append(cb)
+            module_layout.addWidget(cb)
+        downloads_tab_layout.addWidget(module_group)
+        # Paper Info group
         paper_group = QGroupBox("Paper Information")
         paper_layout = QGridLayout()
         paper_group.setLayout(paper_layout)
-        
-        # Module Code
-        module_label = QLabel("Module Code:")
-        module_label.setObjectName("fieldLabel")  # CSS styling identifier
-        self.module_input = QLineEdit()  # Create text input field
-        self.module_input.setPlaceholderText("E.g. CS101")  # Set placeholder text
-        paper_layout.addWidget(module_label, 0, 0)  # Add to layout at row 0, column 0
-        paper_layout.addWidget(self.module_input, 0, 1)  # Add to layout at row 0, column 1
-        
-        # Output Directory field with browse button
         output_label = QLabel("Output Directory:")
-        output_label.setObjectName("fieldLabel")  # CSS styling identifier
-        
-        # Create a horizontal layout for the directory field and browse button
+        output_label.setObjectName("fieldLabel")
         output_layout = QHBoxLayout()
         self.output_display = QLineEdit(self.output_folder)
-        self.output_display.setReadOnly(True)  # Make it read-only as it's updated by the dialog
-        
-        # Create a browse button to open the directory selection dialog
+        self.output_display.setReadOnly(True)
         output_btn = QPushButton("Browse...")
         output_btn.setObjectName("browseButton")
         output_btn.clicked.connect(self.select_output_folder)
-        
-        # Add the components to the horizontal layout
         output_layout.addWidget(self.output_display)
         output_layout.addWidget(output_btn)
-        
-        # Add the label and layout to the paper section's grid layout
-        paper_layout.addWidget(output_label, 1, 0)  # Add to layout at row 1, column 0
-        paper_layout.addLayout(output_layout, 1, 1)  # Add to layout at row 1, column 1
-        
-        # Add the paper group to the main layout
-        main_layout.addWidget(paper_group)
-        
-        # ======================================================================
-        # AI Settings Section
-        # ======================================================================
-        # Create a group box for the AI settings
-        ai_group = QGroupBox("AI Settings (Note generation currently unavailable)")
-        ai_layout = QGridLayout()
-        ai_group.setLayout(ai_layout)
-        
-        # API Key field
-        api_label = QLabel("GPT API Key:")
-        api_label.setObjectName("fieldLabel")  # CSS styling identifier
-        self.api_input = QLineEdit()  # Create text input field
-        self.api_input.setPlaceholderText("Enter your OpenAI API key")  # Set placeholder text
-        ai_layout.addWidget(api_label, 0, 0)  # Add to layout at row 0, column 0
-        ai_layout.addWidget(self.api_input, 0, 1, 1, 4)  # Add to layout at row 0, column 1, spanning 4 columns
-        
-        # Options
-        options_label = QLabel("Options:")
-        options_label.setObjectName("fieldLabel")  # CSS styling identifier
-        ai_layout.addWidget(options_label, 1, 0)  # Add to layout at row 1, column 0
-        
-        # Checkboxes
-        self.study_plan_cb = QCheckBox("Create Study Plan")
-        self.questions_cb = QCheckBox("Create Sample Questions")
-        self.flashcards_cb = QCheckBox("Create Flashcards")
-        self.lolcat_cb = QCheckBox("lolcat")  # For fun, generates output in lolcat style
-        
-        # Add the checkboxes to the layout
-        ai_layout.addWidget(self.study_plan_cb, 1, 1)  # Row 1, Column 1
-        ai_layout.addWidget(self.questions_cb, 1, 2)   # Row 1, Column 2
-        ai_layout.addWidget(self.flashcards_cb, 1, 3)  # Row 1, Column 3
-        ai_layout.addWidget(self.lolcat_cb, 1, 4)      # Row 1, Column 4
-        
-        # Add the AI settings group to the main layout
-        main_layout.addWidget(ai_group)
-        
-        # ======================================================================
-        # Start Button Section
-        # ======================================================================
-        # Create a horizontal layout for centering the start button
+        paper_layout.addWidget(output_label, 0, 0)
+        paper_layout.addLayout(output_layout, 0, 1)
+        downloads_tab_layout.addWidget(paper_group)
+        # Progress Bar
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(False)
+        downloads_tab_layout.addWidget(self.progress_bar)
+        # Start button
         button_layout = QHBoxLayout()
         button_layout.addStretch()
         self.start_button = QPushButton("Start")
-        self.start_button.setObjectName("startButton")  # CSS styling identifier
-        # Connect the button's clicked signal to our start_scraper method
+        self.start_button.setObjectName("startButton")
         self.start_button.clicked.connect(self.start_scraper)
-        
-        # Add the button to the layout with stretches for centering
         button_layout.addWidget(self.start_button)
-        button_layout.addStretch()  # Add flexible space after the button
-        
-        main_layout.addLayout(button_layout)
-        
-        # Add stretch to push everything to the top
-        # This ensures the UI components are aligned at the top of the window
-        # if the window is resized larger than needed
-        main_layout.addStretch()
-        
+        button_layout.addStretch()
+        downloads_tab_layout.addLayout(button_layout)
+        downloads_tab_layout.addStretch()
+        self.tabs.addTab(self.downloads_tab, "Downloads / Module Selection")
+
+        # ------------------- AI Generation Tab -------------------
+        self.ai_tab = QWidget()
+        ai_tab_layout = QVBoxLayout(self.ai_tab)
+        # Message view
+        self.message_list = QListWidget()
+        ai_tab_layout.addWidget(self.message_list)
+        # Message input and send
+        msg_input_layout = QHBoxLayout()
+        self.message_input = QLineEdit()
+        self.message_input.setPlaceholderText("Type your message...")
+        self.send_button = QPushButton("Send")
+        msg_input_layout.addWidget(self.message_input)
+        msg_input_layout.addWidget(self.send_button)
+        ai_tab_layout.addLayout(msg_input_layout)
+        # File add and model select
+        file_model_layout = QHBoxLayout()
+        self.add_file_button = QPushButton("Add File")
+        self.model_select = QComboBox()
+        self.model_select.addItems(["gpt-3.5-turbo", "gpt-4", "llama-2"])  # Example models
+        self.settings_button = QPushButton("Model Settings")
+        file_model_layout.addWidget(self.add_file_button)
+        file_model_layout.addWidget(QLabel("Model:"))
+        file_model_layout.addWidget(self.model_select)
+        file_model_layout.addWidget(self.settings_button)
+        ai_tab_layout.addLayout(file_model_layout)
+        self.tabs.addTab(self.ai_tab, "AI Generation")
+
         # ======================================================================
         # Status Bar
         # ======================================================================
-        # Create and set up the status bar at the bottom of the window
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Ready")
@@ -426,6 +388,10 @@ class MainWindow(QMainWindow):
         # Update status bar to show that scraping is in progress
         self.status_bar.showMessage("Scraping in progress...")
         
+        # Reset and show the progress bar
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(True)
+        
         # ======================================================================
         # Start Scraping in Background Thread
         # ======================================================================
@@ -440,10 +406,22 @@ class MainWindow(QMainWindow):
         
         # Connect the worker's finished signal to our callback method
         self.worker.finished.connect(self.on_scraper_finished)
+        self.worker.progress.connect(self.on_download_progress)
         
         # Start the worker thread
         # This will call the worker's run() method in a separate thread
         self.worker.start()
+    
+    def on_download_progress(self, current, total):
+        """
+        Update the progress bar based on the current progress of the download.
+        
+        Args:
+            current (int): The current progress value
+            total (int): The total value for the progress
+        """
+        self.progress_bar.setMaximum(total)
+        self.progress_bar.setValue(current)
     
     def on_scraper_finished(self, success, message):
         """
@@ -463,6 +441,9 @@ class MainWindow(QMainWindow):
         # Re-enable the start button
         self.start_button.setEnabled(True)
         self.start_button.setText("Start")
+        
+        # Hide the progress bar
+        self.progress_bar.setVisible(False)
         
         # ======================================================================
         # Handle Success or Failure
