@@ -20,6 +20,9 @@ import sys
 import re
 import threading
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 # PySide6 imports for UI components
 from PySide6.QtWidgets import (
@@ -88,12 +91,14 @@ class ScraperWorker(QThread):
         """
         # Initialize the parent QThread
         super().__init__()
+        logger.debug(f"Initializing ScraperWorker for module: {module_code}")
         self.username = username
         self.password = password
         self.module_code = module_code
         self.output_folder = output_folder
         self.scraper = scraper.Scraper()
         self.progress_callback = None
+        logger.debug(f"ScraperWorker initialized - output folder: {output_folder}")
 
     def run(self):
         """
@@ -103,9 +108,11 @@ class ScraperWorker(QThread):
         It runs the scraper with the provided authentication and module information,
         then emits the finished signal with the result.
         """
+        logger.info(f"ScraperWorker thread started for module: {self.module_code}")
 
         # Define a progress callback to emit progress updates
         def progress_cb(current, total):
+            logger.debug(f"ScraperWorker progress update: {current}/{total}")
             self.progress.emit(current, total)
 
         # Assign the progress callback to the scraper
@@ -113,6 +120,7 @@ class ScraperWorker(QThread):
 
         # Run the scraper and get the result
         # The scraper.start method returns True on success or an error message on failure
+        logger.info(f"Starting scraper for module: {self.module_code.upper()}")
         result = self.scraper.start(
             self.username, self.password, self.module_code.upper(), self.output_folder
         )
@@ -120,9 +128,11 @@ class ScraperWorker(QThread):
         # Signal the result back to the main thread
         if result is True:
             # Success case: emit True with a success message
+            logger.info(f"ScraperWorker completed successfully for module: {self.module_code}")
             self.finished.emit(True, "Success")
         else:
             # Error case: emit False with the error message
+            logger.error(f"ScraperWorker failed for module {self.module_code}: {result}")
             self.finished.emit(False, str(result))
 
 
@@ -138,14 +148,21 @@ class OllamaWorker(QThread):
 
     def __init__(self, prompt, model, settings):
         super().__init__()
+        logger.debug(f"Initializing OllamaWorker with model: {model}")
         self.prompt = prompt
         self.model = model
         self.settings = settings
+        logger.debug(f"OllamaWorker settings: temperature={settings.get('temperature')}, max_tokens={settings.get('max_tokens')}")
 
     def run(self):
         import requests
+        logger.info("OllamaWorker thread started")
         model_name = self.model.replace("ollama:", "").strip()
         url = f"http://localhost:11434/api/generate"
+        logger.debug(f"Ollama API URL: {url}")
+        logger.debug(f"Model name: {model_name}")
+        logger.debug(f"Prompt length: {len(self.prompt)} characters")
+
         payload = {
             "model": model_name,
             "prompt": self.prompt,
@@ -154,14 +171,26 @@ class OllamaWorker(QThread):
                 "num_predict": self.settings.get("max_tokens", 512),
             },
         }
+        logger.debug(f"Request payload prepared with options: {payload['options']}")
+
         try:
+            logger.info(f"Sending request to Ollama API for model: {model_name}")
             resp = requests.post(url, json=payload, timeout=60)
+            logger.debug(f"Ollama API response status: {resp.status_code}")
+
             if resp.status_code == 200:
                 data = resp.json()
-                self.finished.emit(data.get("response", "(no response)"))
+                response_text = data.get("response", "(no response)")
+                logger.info(f"Ollama response received: {len(response_text)} characters")
+                logger.debug(f"Response preview: {response_text[:100]}...")
+                self.finished.emit(response_text)
             else:
+                logger.error(f"Ollama API error: HTTP {resp.status_code}")
+                logger.debug(f"Response body: {resp.text[:500]}")
                 self.error.emit(f"[Ollama error: {resp.status_code}]")
         except Exception as e:
+            logger.error(f"Ollama connection error: {e}")
+            logger.exception("Full exception details:")
             self.error.emit(f"[Ollama connection error: {e}]")
 
 
@@ -242,17 +271,23 @@ class MainWindow(QMainWindow):
         """
         # Initialize the parent QMainWindow
         super().__init__()
+        logger.info("Initializing MainWindow")
 
         # Window settings
         self.setWindowTitle("Maynooth Paper Scraper")
         self.setGeometry(100, 100, 600, 400)
+        logger.debug("Window geometry set to 100, 100, 600, 400")
 
         # Application variables
         self.output_folder = "./papers"  # Default output folder
+        logger.debug(f"Default output folder: {self.output_folder}")
 
         # Set up the UI components
+        logger.info("Setting up UI components")
         self.setup_ui()
+        logger.info("Applying initial theme")
         self.apply_theme()
+        logger.info("MainWindow initialization complete")
 
     def setup_ui(self):
         """
@@ -424,7 +459,9 @@ class MainWindow(QMainWindow):
         """
         # Get the current theme's stylesheet from the theme manager
         # and apply it to the entire window
+        logger.debug(f"Applying theme: {theme.current_theme}")
         self.setStyleSheet(theme.get_stylesheet())
+        logger.debug("Theme stylesheet applied to window")
 
     def toggle_theme(self):
         """
@@ -435,12 +472,14 @@ class MainWindow(QMainWindow):
         2. Applies the new theme
         3. Updates the status bar with information about the current theme
         """
+        logger.info("User requested theme toggle")
         # Toggle the theme in the theme manager (light->dark or dark->light)
         theme.toggle_theme()
         self.apply_theme()
 
         # Update the status bar with information about the current theme
         current_theme = "Dark" if theme.current_theme == "dark" else "Light"
+        logger.info(f"Theme toggled to: {current_theme}")
         self.status_bar.showMessage(f"{current_theme} theme applied")
 
     def select_output_folder(self):
@@ -454,6 +493,9 @@ class MainWindow(QMainWindow):
 
         The selected folder will be used as the destination for downloaded papers.
         """
+        logger.info("Opening output folder selection dialog")
+        logger.debug(f"Current output folder: {self.output_folder}")
+
         # Open a directory selection dialog
         folder_path = QFileDialog.getExistingDirectory(
             self, "Select Output Folder", str(Path(self.output_folder).absolute())
@@ -461,8 +503,11 @@ class MainWindow(QMainWindow):
 
         # If a folder was selected (user didn't cancel the dialog)
         if folder_path:
+            logger.info(f"Output folder selected: {folder_path}")
             self.output_folder = folder_path
             self.output_display.setText(folder_path)
+        else:
+            logger.debug("Output folder selection cancelled by user")
 
     def start_scraper(self):
         """
@@ -478,31 +523,51 @@ class MainWindow(QMainWindow):
         The actual scraping is performed in a background thread to keep
         the UI responsive during the potentially long-running operation.
         """
+        logger.info("=" * 50)
+        logger.info("Start scraper button clicked")
+        logger.info("=" * 50)
+
         # Collect all selected modules from the checklist
         selected_modules = [
             cb.text() for cb in self.module_checkboxes if cb.isChecked()
         ]
         selected_modules.extend(self.custom_modules)
+        # Remove duplicates while preserving order
+        selected_modules = list(dict.fromkeys(selected_modules))
+        logger.debug(f"Selected modules: {selected_modules}")
+        logger.debug(f"Custom modules: {self.custom_modules}")
+
         if not selected_modules:
+            logger.warning("Validation failed: No modules selected")
             QMessageBox.critical(
                 self, "Error", "Please select at least one module to download."
             )
             return
         if not self.password_input.text():
+            logger.warning("Validation failed: Password is empty")
             QMessageBox.critical(self, "Error", "Password cannot be empty")
             return
         if not self.output_folder:
+            logger.warning("Validation failed: Output folder is empty")
             QMessageBox.critical(self, "Error", "Output folder cannot be empty")
             return
+
+        logger.info(f"Validation passed - {len(selected_modules)} modules to scrape")
+        logger.debug(f"Username: {self.username_input.text()[:4]}****")
+        logger.debug(f"Output folder: {self.output_folder}")
+
         # Prepare UI for Scraping
+        logger.debug("Preparing UI for scraping operation")
         self.start_button.setEnabled(False)
         self.start_button.setText("Scraping...")
         self.status_bar.showMessage("Scraping in progress...")
         self.progress_bar.setValue(0)
         self.progress_bar.setVisible(True)
+
         # Start scraping for each selected module, one after another
         self._modules_to_scrape = selected_modules
         self._current_scrape_index = 0
+        logger.info(f"Starting scrape queue with {len(selected_modules)} modules")
         self._scrape_next_module()
 
     def _scrape_next_module(self):
@@ -510,10 +575,16 @@ class MainWindow(QMainWindow):
         Internal: Start scraping the next module in the selected list.
         Called recursively until all modules are processed.
         """
+        logger.debug(f"_scrape_next_module called - index: {self._current_scrape_index}/{len(self._modules_to_scrape)}")
+
         if self._current_scrape_index >= len(self._modules_to_scrape):
+            logger.info("All modules in queue have been processed")
             self.on_scraper_finished(True, "All modules scraped.")
             return
+
         module_code = self._modules_to_scrape[self._current_scrape_index]
+        logger.info(f"Starting scrape for module: {module_code} ({self._current_scrape_index+1}/{len(self._modules_to_scrape)})")
+
         self.worker = ScraperWorker(
             self.username_input.text(),
             self.password_input.text(),
@@ -522,7 +593,9 @@ class MainWindow(QMainWindow):
         )
         self.worker.finished.connect(self._on_module_scrape_finished)
         self.worker.progress.connect(self.on_download_progress)
+        logger.debug(f"ScraperWorker created and signals connected for module: {module_code}")
         self.worker.start()
+        logger.debug(f"ScraperWorker thread started for module: {module_code}")
         self.status_bar.showMessage(
             f"Scraping {module_code} ({self._current_scrape_index+1}/{len(self._modules_to_scrape)})..."
         )
@@ -532,9 +605,15 @@ class MainWindow(QMainWindow):
         Internal: Handle completion of a single module scrape.
         Continues to next module or finishes the process.
         """
+        module_code = self._modules_to_scrape[self._current_scrape_index]
+        logger.debug(f"Module scrape finished: {module_code} - success={success}, message={message}")
+
         if not success:
+            logger.error(f"Module scrape failed for {module_code}: {message}")
             self.on_scraper_finished(False, message)
             return
+
+        logger.info(f"Module {module_code} scraped successfully")
         self._current_scrape_index += 1
         self._scrape_next_module()
 
@@ -543,13 +622,21 @@ class MainWindow(QMainWindow):
         Handle the completion of all scraping operations.
         Restores UI and shows result to the user.
         """
+        logger.info("=" * 50)
+        logger.info(f"Scraping operation completed - success={success}")
+        logger.info("=" * 50)
+
+        logger.debug("Restoring UI state")
         self.start_button.setEnabled(True)
         self.start_button.setText("Start")
         self.progress_bar.setVisible(False)
+
         if success:
+            logger.info(f"Scraping completed successfully: {message}")
             self.status_bar.showMessage("Scraping completed successfully!")
             QMessageBox.information(self, "Success", message)
         else:
+            logger.error(f"Scraping failed: {message}")
             self.status_bar.showMessage("Error: Scraping failed")
             QMessageBox.critical(self, "Error", message)
 
@@ -561,6 +648,7 @@ class MainWindow(QMainWindow):
             current (int): The current progress value
             total (int): The total value for the progress
         """
+        logger.debug(f"Download progress update: {current}/{total}")
         self.progress_bar.setMaximum(total)
         self.progress_bar.setValue(current)
 
@@ -570,30 +658,45 @@ class MainWindow(QMainWindow):
         Renders user message, calls AI backend (Ollama or placeholder), and renders response as markdown.
         """
         text = self.message_input.text().strip()
+        logger.debug(f"Send message called with text length: {len(text)}")
+
         if text:
+            logger.info(f"Sending user message: {text[:50]}...")
             self.message_list.append_markdown(f"**You:** {text}")
             self.message_input.clear()
             model = self.model_select.currentText()
+            logger.debug(f"Selected model: {model}")
+
             settings = getattr(
                 self, "_model_settings", {"temperature": 1.0, "max_tokens": 512}
             )
+            logger.debug(f"Model settings: {settings}")
+
             if model.startswith("ollama:") or model.lower().startswith("llama"):
+                logger.info(f"Using Ollama backend with model: {model}")
                 self.send_button.setEnabled(False)
                 self.status_bar.showMessage("Generating AI response...")
                 self.ollama_worker = OllamaWorker(text, model, settings)
                 self.ollama_worker.finished.connect(self._on_ollama_finished)
                 self.ollama_worker.error.connect(self._on_ollama_error)
                 self.ollama_worker.start()
+                logger.debug("OllamaWorker thread started")
             else:
+                logger.info(f"Using placeholder response for model: {model}")
                 response = "(response placeholder)"  # Replace with OpenAI call if needed
                 self.message_list.append_markdown(f"**AI:** {response}")
+        else:
+            logger.debug("Empty message, ignoring send request")
 
     def _on_ollama_finished(self, response):
+        logger.info(f"Ollama response received: {len(response)} characters")
+        logger.debug(f"Response preview: {response[:100]}...")
         self.message_list.append_markdown(f"**AI:** {response}")
         self.send_button.setEnabled(True)
         self.status_bar.showMessage("Ready")
 
     def _on_ollama_error(self, error_msg):
+        logger.error(f"Ollama error: {error_msg}")
         self.message_list.append_markdown(f"**AI:** {error_msg}")
         self.send_button.setEnabled(True)
         self.status_bar.showMessage("Ready")
@@ -602,26 +705,40 @@ class MainWindow(QMainWindow):
         """
         Open a file dialog and add the selected file to the AI chat as a markdown entry.
         """
+        logger.info("Opening file selection dialog for AI chat")
         file_path, _ = QFileDialog.getOpenFileName(self, "Add File")
         if file_path:
+            logger.info(f"File added to AI chat: {file_path}")
             self.message_list.append_markdown(f"[File added: `{file_path}`]")
+        else:
+            logger.debug("File selection cancelled by user")
 
     def open_settings_dialog(self):
         """
         Open the model settings dialog and store the selected parameters.
         """
+        logger.info("Opening model settings dialog")
         dlg = ModelSettingsDialog(self)
         if dlg.exec() == QDialog.Accepted:
             self._model_settings = dlg.get_settings()
+            logger.info(f"Model settings updated: {self._model_settings}")
+        else:
+            logger.debug("Model settings dialog cancelled")
 
     def query_ollama(self, prompt, model, settings):
         """
         Query a locally running Ollama model with the given prompt and settings.
         Returns the model's response as a string.
         """
+        logger.info(f"Querying Ollama model: {model}")
+        logger.debug(f"Prompt length: {len(prompt)} characters")
+        logger.debug(f"Settings: {settings}")
+
         # Assumes Ollama is running locally on default port
         model_name = model.replace("ollama:", "").strip()
         url = f"http://localhost:11434/api/generate"
+        logger.debug(f"Ollama URL: {url}, Model: {model_name}")
+
         payload = {
             "model": model_name,
             "prompt": prompt,
@@ -631,14 +748,22 @@ class MainWindow(QMainWindow):
             },
         }
         try:
+            logger.debug("Sending POST request to Ollama API")
             resp = requests.post(url, json=payload, timeout=60)
+            logger.debug(f"Ollama response status: {resp.status_code}")
+
             if resp.status_code == 200:
                 # Ollama streams responses, but for simplicity, just get the text
                 data = resp.json()
-                return data.get("response", "(no response)")
+                response_text = data.get("response", "(no response)")
+                logger.info(f"Ollama query successful: {len(response_text)} characters")
+                return response_text
             else:
+                logger.error(f"Ollama API error: HTTP {resp.status_code}")
                 return f"[Ollama error: {resp.status_code}]"
         except Exception as e:
+            logger.error(f"Ollama connection error: {e}")
+            logger.exception("Full exception details:")
             return f"[Ollama connection error: {e}]"
 
     def add_custom_module(self):
@@ -646,22 +771,41 @@ class MainWindow(QMainWindow):
         Add a custom module code to the module selection list.
         """
         custom_code = self.custom_module_input.text().strip()
+        logger.debug(f"Add custom module called with code: '{custom_code}'")
+
         if custom_code and custom_code not in self.custom_modules:
+            logger.info(f"Adding custom module: {custom_code}")
             cb = QCheckBox(custom_code)
             self.module_checkboxes.append(cb)
             self.custom_modules.append(custom_code)
             self.tabs.widget(1).layout().itemAt(0).widget().layout().addWidget(cb)
             self.custom_module_input.clear()
+            logger.debug(f"Custom modules list: {self.custom_modules}")
+        elif custom_code in self.custom_modules:
+            logger.debug(f"Module {custom_code} already exists, skipping")
+        else:
+            logger.debug("Empty module code, skipping")
 
     def remove_selected_custom_modules(self):
         """
         Remove selected custom module codes from the module selection list.
         """
+        logger.info("Removing selected custom modules")
+        removed_modules = []
+
         for cb in self.module_checkboxes[:]:
             if cb.isChecked() and cb.text() in self.custom_modules:
+                module_code = cb.text()
+                logger.debug(f"Removing custom module: {module_code}")
                 self.module_checkboxes.remove(cb)
-                self.custom_modules.remove(cb.text())
+                self.custom_modules.remove(module_code)
                 cb.setParent(None)
+                removed_modules.append(module_code)
+
+        if removed_modules:
+            logger.info(f"Removed {len(removed_modules)} custom modules: {removed_modules}")
+        else:
+            logger.debug("No custom modules were selected for removal")
 
 
 def run_app():
@@ -677,16 +821,25 @@ def run_app():
     The application will continue running until the user closes the window
     or calls sys.exit() from elsewhere in the code.
     """
+    logger.info("=" * 60)
+    logger.info("Initializing Qt Application")
+    logger.info("=" * 60)
+
     # Create a QApplication instance
     # QApplication manages the GUI application's control flow and main settings
+    logger.debug(f"Command line arguments: {sys.argv}")
     app = QApplication(sys.argv)  # Pass command line arguments to the application
+    logger.debug("QApplication instance created")
 
     # Create the main window
+    logger.info("Creating MainWindow instance")
     window = MainWindow()
 
     # Show the window
+    logger.info("Displaying main window")
     window.show()
 
     # Start the application's event loop
     # This call will block until the application exits
+    logger.info("Starting Qt event loop")
     sys.exit(app.exec())
