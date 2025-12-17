@@ -3,28 +3,44 @@ Styling for the Maynooth Paper Prep application.
 Provides light and dark themes with easy switching.
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 class AppTheme:
     """Manages application themes and provides easy access to stylesheets"""
 
     def __init__(self):
+        logger.debug("Initializing AppTheme instance")
         self.current_theme = "light"
+        logger.info(f"Default theme set to: {self.current_theme}")
 
     def get_stylesheet(self):
         """Returns the current theme's stylesheet"""
+        logger.debug(f"Getting stylesheet for theme: {self.current_theme}")
         if self.current_theme == "dark":
+            logger.debug("Returning dark theme stylesheet")
             return self.dark_theme()
         else:
+            logger.debug("Returning light theme stylesheet")
             return self.light_theme()
 
     def set_theme(self, theme_name):
         """Sets the current theme to either 'light' or 'dark'"""
+        logger.info(f"Attempting to set theme to: {theme_name}")
         if theme_name in ["light", "dark"]:
+            old_theme = self.current_theme
             self.current_theme = theme_name
+            logger.info(f"Theme changed from '{old_theme}' to '{self.current_theme}'")
+        else:
+            logger.warning(f"Invalid theme name provided: {theme_name}. Must be 'light' or 'dark'")
 
     def toggle_theme(self):
         """Toggles between light and dark themes"""
+        old_theme = self.current_theme
         self.current_theme = "dark" if self.current_theme == "light" else "light"
+        logger.info(f"Theme toggled from '{old_theme}' to '{self.current_theme}'")
 
     @staticmethod
     def light_theme():

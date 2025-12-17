@@ -5,14 +5,30 @@ import scraper
 import re
 import threading
 from time import sleep
+import logging
 
+# Configure logging for the entire application
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('maynooth_paper_prep.log')
+    ]
+)
+
+logger = logging.getLogger(__name__)
 
 # new impl for the UI from the ui module
 
 from ui import run_app
 
 if __name__ == "__main__":
+    logger.info("=" * 60)
+    logger.info("Starting Maynooth Paper Prep Application")
+    logger.info("=" * 60)
     run_app()
+    logger.info("Application shutdown complete")
 
 
 """

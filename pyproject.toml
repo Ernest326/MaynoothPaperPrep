@@ -7,6 +7,7 @@ requires-python = ">=3.11"
 dependencies = [
     "black>=25.1.0",
     "bs4>=0.0.2",
+    "cloudscraper>=1.2.71",
     "markdown>=3.8",
     "openai>=1.76.2",
     "pypdf2>=3.0.1",
