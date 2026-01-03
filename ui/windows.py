@@ -79,7 +79,7 @@ class ScraperWorker(QThread):
     finished = Signal(bool, str)
     progress = Signal(int, int)  # current, total
 
-    def __init__(self, username, password, module_code, output_folder):
+    def __init__(self, username, password, module_code, output_folder, allowed_years=None):
         """
         Initialize the worker thread with the necessary scraping parameters.
 
@@ -96,7 +96,7 @@ class ScraperWorker(QThread):
         self.password = password
         self.module_code = module_code
         self.output_folder = output_folder
-        self.scraper = scraper.Scraper()
+        self.scraper = scraper.Scraper(allowed_years=allowed_years)
         self.progress_callback = None
         logger.debug(f"ScraperWorker initialized - output folder: {output_folder}")
 
@@ -391,6 +391,16 @@ class MainWindow(QMainWindow):
         output_layout.addWidget(output_btn)
         paper_layout.addWidget(output_label, 0, 0)
         paper_layout.addLayout(output_layout, 0, 1)
+
+        # Allowed Years input
+        allowed_years_label = QLabel("Allowed Years:")
+        allowed_years_label.setObjectName("fieldLabel")
+        self.allowed_years_input = QLineEdit()
+        self.allowed_years_input.setPlaceholderText("e.g. 2020,2021,2022,2023,2024,2025")
+        self.allowed_years_input.setText("2020,2021,2022,2023,2024,2025")
+        paper_layout.addWidget(allowed_years_label, 1, 0)
+        paper_layout.addWidget(self.allowed_years_input, 1, 1)
+
         downloads_tab_layout.addWidget(paper_group)
         # Progress Bar
         self.progress_bar = QProgressBar()
@@ -585,11 +595,17 @@ class MainWindow(QMainWindow):
         module_code = self._modules_to_scrape[self._current_scrape_index]
         logger.info(f"Starting scrape for module: {module_code} ({self._current_scrape_index+1}/{len(self._modules_to_scrape)})")
 
+        # Parse allowed years from input
+        allowed_years_text = self.allowed_years_input.text().strip()
+        allowed_years = [y.strip() for y in allowed_years_text.split(",") if y.strip().isdigit()]
+        if not allowed_years:
+            allowed_years = [str(year) for year in range(2020, 2026)]
         self.worker = ScraperWorker(
             self.username_input.text(),
             self.password_input.text(),
             module_code,
             self.output_folder,
+            allowed_years=allowed_years,
         )
         self.worker.finished.connect(self._on_module_scrape_finished)
         self.worker.progress.connect(self.on_download_progress)

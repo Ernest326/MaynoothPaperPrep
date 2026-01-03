@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 
 class Scraper:
-    def __init__(self):
+    def __init__(self, allowed_years=None):
         logger.debug("Initializing Scraper instance")
         self.session = cloudscraper.create_scraper(
             browser={
@@ -19,6 +19,10 @@ class Scraper:
         )
         self.url = "https://www.maynoothuniversity.ie/library/exam-papers"
         logger.debug(f"Scraper initialized with URL: {self.url}")
+        if allowed_years is None:
+            self.allowed_years = set(str(year) for year in range(2020, 2026))
+        else:
+            self.allowed_years = set(str(y) for y in allowed_years)
 
     def start(self, username, password, module_code, output_folder):
         logger.info("=" * 50)
@@ -111,10 +115,28 @@ class Scraper:
         else:
             logger.debug(f"Output directory already exists: {output_path}")
 
+        # Filter papers by year in the filename (e.g., "2020", "2021", etc.)
+        allowed_years = self.allowed_years
+        filtered_papers = []
+        for paper in papers:
+            filename = paper.split('/')[-1]
+            # Look for a 4-digit year in the filename
+            for year in allowed_years:
+                if year in filename:
+                    filtered_papers.append(paper)
+                    logger.debug(f"Including paper for year {year}: {filename}")
+                    break
+            else:
+                logger.debug(f"Excluding paper (year not in allowed range): {filename}")
+
+        if not filtered_papers:
+            logger.warning(f"No papers found for module {module_code} in years {min(allowed_years)}-{max(allowed_years)}")
+            return f"No papers found for this module in years {min(allowed_years)}-{max(allowed_years)}"
+
         # Download papers in parallel using threads
         threads = []
         self._progress_count = 0
-        total = len(papers)
+        total = len(filtered_papers)
         logger.info(f"Starting parallel download of {total} papers...")
 
         def progress_update():
@@ -123,11 +145,11 @@ class Scraper:
             if hasattr(self, "progress_callback") and callable(self.progress_callback):
                 self.progress_callback(self._progress_count, total)
 
-        for i, paper in enumerate(papers):
+        for i, paper in enumerate(filtered_papers):
             logger.debug(f"Creating download thread {i+1}/{total} for: {paper.split('/')[-1]}")
             thread = threading.Thread(
-                target=self.download_paper,
-                args=(paper, output_folder, module_code, progress_update),
+            target=self.download_paper,
+            args=(paper, output_folder, module_code, progress_update),
             )
             threads.append(thread)
             thread.start()
